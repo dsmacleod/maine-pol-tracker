@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import date
 import anthropic
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ For each event, return a JSON object with:
 - source_url: "{source_url}"
 
 Return ONLY a JSON array. If no events are found, return [].
-Do NOT include past events (before today's date).
+Today's date is {today}. Do NOT include past events (before today).
 Do NOT hallucinate events — only extract events explicitly mentioned in the text.
 
 Text:
@@ -32,6 +33,7 @@ def extract_events(
         candidate_name=candidate_name,
         source_url=source_url,
         text=text[:8000],
+        today=date.today().isoformat(),
     )
 
     try:
