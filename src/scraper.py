@@ -10,6 +10,7 @@ import yaml
 from src.fetcher import fetch_page, search_candidate_events
 from src.extractor import extract_events
 from src.airtable_client import AirtableClient
+from src.mobilize_source import fetch_mobilize_events
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -117,7 +118,41 @@ def main():
     )
     client.get_existing_events()
 
+    # Build candidate-to-race lookup
+    candidate_races = {}
+    for race_key, race_label in RACE_LABELS.items():
+        for c in config.get(race_key, []):
+            candidate_races[c["name"]] = race_label
+
+    # 1. Mobilize.us events
     total = 0
+    mobilize_events = fetch_mobilize_events()
+    for evt in mobilize_events:
+        dt = evt["date_time"]
+        location = evt["location"]
+        candidate = evt.get("candidate", "")
+        if not candidate:
+            continue
+        race = candidate_races.get(candidate, "")
+        if not race:
+            continue
+        if client.is_duplicate(candidate, dt, location):
+            continue
+        record = {
+            "Candidate": candidate,
+            "Race": race,
+            "Event Type": evt.get("event_type", "Other"),
+            "Date & Time": dt,
+            "Location": location,
+            "Source URL": evt.get("source_url", ""),
+            "Source": "Campaign Website",
+            "Last Verified": date.today().isoformat(),
+        }
+        client.add_event(record)
+        total += 1
+        logger.info(f"Mobilize: {candidate} - {evt.get('event_type')} on {dt} at {location}")
+
+    # 2. Web scraping + Brave search
     for race_key, race_label in RACE_LABELS.items():
         candidates = config.get(race_key, [])
         for candidate in candidates:
