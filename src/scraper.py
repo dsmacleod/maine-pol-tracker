@@ -2,7 +2,8 @@
 
 import logging
 import os
-from datetime import date
+import re
+from datetime import date, datetime
 
 import yaml
 
@@ -70,6 +71,18 @@ def process_candidate(
             dt = event.get("date_time", "")
             location = event.get("location", "")
             if not dt or not location:
+                continue
+            # Validate date format and skip past events
+            if not re.match(r"^\d{4}-\d{2}-\d{2}", dt):
+                logger.warning(f"Skipping invalid date '{dt}' for {name}")
+                continue
+            try:
+                event_date = datetime.fromisoformat(dt).date()
+                if event_date < date.today():
+                    logger.debug(f"Skipping past event: {name} on {dt}")
+                    continue
+            except ValueError:
+                logger.warning(f"Skipping unparseable date '{dt}' for {name}")
                 continue
             if client.is_duplicate(name, dt, location):
                 logger.debug(f"Skipping duplicate: {name} on {dt} at {location}")
